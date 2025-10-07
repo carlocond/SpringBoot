@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Software Engineers — CRUD</title>
+
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Heroicons (per le icone) -->
+    <script src="https://unpkg.com/feather-icons"></script>
+
+    <style>
+        /* Piccoli ritocchi per look */
+        body { background: linear-gradient(180deg,#0f172a 0%, #071024 100%); color: #e6eef8; }
+        .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.06); }
+        .muted { color: rgba(230,238,248,0.6); }
+    </style>
+</head>
+<body class="min-h-screen p-6">
+
+<div class="max-w-6xl mx-auto">
+    <header class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-semibold">Software Engineers</h1>
+            <p class="muted">Visualizza · Aggiungi · Modifica · Elimina</p>
+        </div>
+        <div class="flex gap-2 items-center">
+            <input id="search" type="text" placeholder="Cerca per nome o tech..." class="px-3 py-2 rounded-md glass focus:outline-none" />
+            <button id="btnNew" class="px-4 py-2 rounded-md bg-emerald-500 hover:bg-emerald-600">Nuovo</button>
+        </div>
+    </header>
+
+    <main class="glass p-4 rounded-lg">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="text-muted text-sm uppercase">
+                <tr>
+                    <th class="px-3 py-2">#</th>
+                    <th class="px-3 py-2">Nome</th>
+                    <th class="px-3 py-2">Tech Stack</th>
+                    <th class="px-3 py-2">Azioni</th>
+                </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y">
+                <!-- righe generate dinamicamente -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between">
+            <div class="muted text-sm" id="status"></div>
+            <div class="flex gap-2 items-center">
+                <button id="prevPage" class="px-3 py-1 rounded-md glass">Prev</button>
+                <span id="pageInfo" class="muted text-sm">1</span>
+                <button id="nextPage" class="px-3 py-1 rounded-md glass">Next</button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal form -->
+<div id="modal" class="fixed inset-0 hidden items-center justify-center z-50">
+    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="relative w-full max-w-xl p-6 rounded-lg glass">
+        <h2 id="modalTitle" class="text-xl font-semibold mb-2">Nuovo Software Engineer</h2>
+        <form id="form">
+            <input type="hidden" id="engineerId" />
+            <div class="grid grid-cols-1 gap-3">
+                <label class="text-sm">Nome
+                    <input id="name" class="w-full px-3 py-2 mt-1 rounded-md bg-transparent border border-white/8" required />
+                </label>
+                <label class="text-sm">Tech Stack
+                    <input id="techStack" class="w-full px-3 py-2 mt-1 rounded-md bg-transparent border border-white/8" required />
+                </label>
+            </div>
+            <div class="mt-4 flex justify-end gap-2">
+                <button type="button" id="btnCancel" class="px-4 py-2 rounded-md glass">Annulla</button>
+                <button type="submit" id="btnSave" class="px-4 py-2 rounded-md bg-sky-500 hover:bg-sky-600">Salva</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tiny toast -->
+<div id="toast" class="fixed right-6 bottom-6 hidden p-3 rounded-md shadow-lg"></div>
+
+<script>
+    /* CONFIG */
+    const API_BASE = '/api/v1/software-engineers'; // se servi html da stessa origin
+    let allEngineers = [];
+    let page = 1;
+    const pageSize = 8;
+
+    /* UI refs */
+    const tableBody = document.getElementById('tableBody');
+    const status = document.getElementById('status');
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const form = document.getElementById('form');
+    const engineerIdInput = document.getElementById('engineerId');
+    const nameInput = document.getElementById('name');
+    const techStackInput = document.getElementById('techStack');
+    const btnNew = document.getElementById('btnNew');
+    const btnCancel = document.getElementById('btnCancel');
+    const toast = document.getElementById('toast');
+    const searchInput = document.getElementById('search');
+    const prevPage = document.getElementById('prevPage');
+    const nextPage = document.getElementById('nextPage');
+    const pageInfo = document.getElementById('pageInfo');
+
+    function showToast(msg, ok=true) {
+      toast.innerText = msg;
+      toast.className = '';
+      toast.classList.add('p-3','rounded-md','shadow-lg','fixed','right-6','bottom-6');
+      toast.style.background = ok ? 'linear-gradient(90deg,#10b981,#059669)' : 'linear-gradient(90deg,#ef4444,#b91c1c)';
+      toast.style.color = 'white';
+      toast.classList.remove('hidden');
+      setTimeout(()=> toast.classList.add('hidden'), 2600);
+    }
+
+    /* Fetch list from server */
+    async function loadEngineers() {
+      setStatus('Caricamento...');
+      try {
+        const res = await fetch(API_BASE);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        allEngineers = await res.json();
+        renderTable();
+        setStatus(`Trovati ${allEngineers.length} engineers.`);
+      } catch (e) {
+        setStatus('Errore caricamento: ' + e.message);
+        showToast('Errore caricamento', false);
+        console.error(e);
+      }
+    }
+
+    function setStatus(txt) { status.innerText = txt; }
+
+    /* Render paged & filtered table */
+    function renderTable() {
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = allEngineers.filter(e =>
+        !q || (e.name && e.name.toLowerCase().includes(q)) || (e.techStack && e.techStack.toLowerCase().includes(q))
+      );
+      const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+      if (page > totalPages) page = totalPages;
+      const start = (page-1)*pageSize;
+      const pageItems = filtered.slice(start, start+pageSize);
+
+      pageInfo.innerText = `Pagina ${page} / ${totalPages}`;
+
+      tableBody.innerHTML = '';
+      if (pageItems.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="4" class="px-3 py-6 muted">Nessun risultato</td></tr>`;
+        return;
+      }
+
+      pageItems.forEach((eng, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="px-3 py-2">${eng.id ?? '-'}</td>
+          <td class="px-3 py-2">${escapeHtml(eng.name)}</td>
+          <td class="px-3 py-2">${escapeHtml(eng.techStack)}</td>
+          <td class="px-3 py-2">
+            <button class="editBtn px-2 py-1 mr-1 rounded-md glass" data-id="${eng.id}">Edit</button>
+            <button class="delBtn px-2 py-1 rounded-md glass" data-id="${eng.id}">Delete</button>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      });
+
+      // attach actions
+      document.querySelectorAll('.editBtn').forEach(b => b.onclick = () => openEdit(b.dataset.id));
+      document.querySelectorAll('.delBtn').forEach(b => b.onclick = () => confirmDelete(b.dataset.id));
+    }
+
+    /* Utilities */
+    function escapeHtml(s){ if(!s) return ''; return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+    /* Open new */
+    btnNew.onclick = () => {
+      engineerIdInput.value = '';
+      nameInput.value = '';
+      techStackInput.value = '';
+      modalTitle.innerText = 'Nuovo Software Engineer';
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+    };
+
+    /* Cancel modal */
+    btnCancel.onclick = () => { modal.style.display='none'; modal.classList.add('hidden'); };
+
+    /* Save (create or update).
+       We'll call POST to create/update (server-side JPA save handles both if id present). */
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const id = engineerIdInput.value;
+      const payload = {
+        id: id ? Number(id) : undefined,
+        name: nameInput.value.trim(),
+        techStack: techStackInput.value.trim()
+      };
+
+      // Basic validation
+      if (!payload.name || !payload.techStack) { showToast('Compila tutti i campi', false); return; }
+
+      try {
+        const res = await fetch(API_BASE, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        modal.style.display='none'; modal.classList.add('hidden');
+        await loadEngineers();
+        showToast(id ? 'Aggiornato!' : 'Creato!');
+      } catch (e) {
+        console.error(e);
+        showToast('Errore salvataggio', false);
+      }
+    };
+
+    /* Edit open */
+    async function openEdit(id) {
+      try {
+        const res = await fetch(`${API_BASE}/${id}`);
+        if (!res.ok) throw new Error('Not found');
+        const eng = await res.json();
+        engineerIdInput.value = eng.id ?? '';
+        nameInput.value = eng.name ?? '';
+        techStackInput.value = eng.techStack ?? '';
+        modalTitle.innerText = 'Modifica Software Engineer';
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+      } catch (e) {
+        showToast('Impossibile caricare', false);
+      }
+    }
+
+    /* Delete (tries DELETE). If backend non esposto, il dev deve aggiungere l'endpoint. */
+    async function confirmDelete(id) {
+      if (!confirm('Sei sicuro di voler eliminare questo Software Engineer?')) return;
+      try {
+        const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+        if (res.status === 404) throw new Error('Non trovato');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        await loadEngineers();
+        showToast('Eliminato!');
+      } catch (e) {
+        showToast('Eliminazione fallita: aggiungi /api/v1/software-engineers/{id} DELETE nel backend', false);
+        console.error(e);
+      }
+    }
+
+    /* Search & pagination handlers */
+    searchInput.oninput = () => { page = 1; renderTable(); };
+    prevPage.onclick = () => { if (page>1) { page--; renderTable(); } };
+    nextPage.onclick = () => { page++; renderTable(); };
+
+    /* initial load */
+    loadEngineers();
+
+    /* enable feather icons */
+    document.addEventListener('DOMContentLoaded', ()=> { if(window.feather) feather.replace(); });
+</script>
+</body>
+</html>
