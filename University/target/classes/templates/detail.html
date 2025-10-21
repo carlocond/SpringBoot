@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Dettaglio Studente</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        input { display: block; margin-bottom: 10px; padding: 5px; width: 300px; }
+        button { padding: 5px 15px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+<h1 id="form-title">Aggiungi Studente</h1>
+<form id="student-form">
+    <input type="text" id="firstName" placeholder="Nome" required />
+    <input type="text" id="lastName" placeholder="Cognome" required />
+    <input type="number" id="age" placeholder="Età" required />
+    <input type="text" id="course" placeholder="Corso" required />
+    <input type="number" step="0.1" id="cfu" placeholder="CFU" required />
+    <input type="number" step="0.1" id="exams" placeholder="Esami" required />
+    <button type="submit">Salva</button>
+</form>
+<a href="index.html">Torna alla lista</a>
+
+<script>
+    const API_URL = "http://localhost:8080/api/student";
+    const form = document.getElementById("student-form");
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const studentId = urlParams.get("id");
+
+    if (studentId) {
+      document.getElementById("form-title").innerText = "Modifica Studente";
+      fetch(`${API_URL}/${studentId}`)
+        .then(res => res.json())
+        .then(s => {
+          document.getElementById("firstName").value = s.firstName;
+          document.getElementById("lastName").value = s.lastName;
+          document.getElementById("age").value = s.age;
+          document.getElementById("course").value = s.course;
+          document.getElementById("cfu").value = s.cfu;
+          document.getElementById("exams").value = s.exams;
+        });
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const studentData = {
+        firstName: document.getElementById("firstName").value,
+        lastName: document.getElementById("lastName").value,
+        age: parseInt(document.getElementById("age").value),
+        course: document.getElementById("course").value,
+        cfu: parseFloat(document.getElementById("cfu").value),
+        exams: parseFloat(document.getElementById("exams").value)
+      };
+
+      if (studentId) {
+        studentData.id = parseInt(studentId);
+        await fetch(API_URL, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(studentData)
+        });
+      } else {
+        await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(studentData)
+        });
+      }
+
+      window.location.href = "index.html";
+    });
+</script>
+</body>
+</html>

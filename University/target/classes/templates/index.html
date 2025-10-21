@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Lista Studenti</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #f0f0f0; }
+        button { padding: 5px 10px; margin-right: 5px; }
+        a { text-decoration: none; color: blue; }
+    </style>
+</head>
+<body>
+<h1>Lista Studenti</h1>
+<a href="detail.html">Aggiungi Nuovo Studente</a>
+
+<table>
+    <thead>
+    <tr>
+        <th>Nome</th>
+        <th>Cognome</th>
+        <th>Età</th>
+        <th>Corso</th>
+        <th>CFU</th>
+        <th>Esami</th>
+        <th>Azioni</th>
+    </tr>
+    </thead>
+    <tbody id="student-table">
+    <!-- Righe studenti generate da JS -->
+    </tbody>
+</table>
+
+<script>
+    const API_URL = "http://localhost:8080/api/student";
+
+    async function fetchStudents() {
+      const res = await fetch(API_URL);
+      const students = await res.json();
+      const table = document.getElementById("student-table");
+      table.innerHTML = "";
+      students.forEach(s => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${s.firstName}</td>
+          <td>${s.lastName}</td>
+          <td>${s.age}</td>
+          <td>${s.course}</td>
+          <td>${s.cfu}</td>
+          <td>${s.exams}</td>
+          <td>
+            <a href="detail.html?id=${s.id}"><button>Modifica</button></a>
+            <button onclick="deleteStudent(${s.id})">Elimina</button>
+          </td>
+        `;
+        table.appendChild(tr);
+      });
+    }
+
+    async function deleteStudent(id) {
+      if (confirm("Sei sicuro di voler eliminare questo studente?")) {
+        await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+        fetchStudents();
+      }
+    }
+
+    fetchStudents();
+</script>
+</body>
+</html>
