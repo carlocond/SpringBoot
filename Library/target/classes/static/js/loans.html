@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Loans</title>
+</head>
+<body>
+<h1>Loans</h1>
+
+<h2>Create Loan</h2>
+<form id="createLoanForm">
+    <input type="number" id="userId" placeholder="User ID" required>
+    <input type="number" id="bookId" placeholder="Book ID" required>
+    <input type="date" id="dueDate" required>
+    <button type="submit">Create Loan</button>
+</form>
+
+<h2>Active Loans for User</h2>
+<form id="activeLoansForm">
+    <input type="number" id="loanUserId" placeholder="User ID">
+    <button type="submit">Fetch Loans</button>
+</form>
+<ul id="loanList"></ul>
+
+<script src="js/loans.js"></script>
+</body>
+</html>
